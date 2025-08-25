@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Поиск заказа</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.8;
+            font-size: 1.1em;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .search-form {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            align-items: center;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        
+        .search-button {
+            padding: 15px 30px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        
+        .search-button:hover {
+            background: #2980b9;
+        }
+        
+        .search-button:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .result.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .result.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .result.loading {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        
+        .order-data {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Поиск заказа</h1>
+            <p>Введите ID заказа для получения информации</p>
+        </div>
+        
+        <div class="content">
+            <form id="orderForm" class="search-form">
+                <input 
+                    type="text" 
+                    id="orderId" 
+                    class="search-input"
+                    placeholder="Введите order_uid (например: b563feb7b2b84b6test)" 
+                    required 
+                    autocomplete="off"
+                />
+                <button type="submit" class="search-button" id="searchBtn">
+                    <span class="btn-text">Найти</span>
+                    <span class="loading-spinner" style="display: none;"></span>
+                </button>
+            </form>
+            
+            <div id="result" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('orderForm');
+        const orderIdInput = document.getElementById('orderId');
+        const resultDiv = document.getElementById('result');
+        const searchBtn = document.getElementById('searchBtn');
+        const btnText = searchBtn.querySelector('.btn-text');
+        const spinner = searchBtn.querySelector('.loading-spinner');
+
+        // Функция для показа результата
+        function showResult(message, type = 'success') {
+            resultDiv.className = `result ${type}`;
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = message;
+        }
+
+        // Функция для показа загрузки
+        function showLoading() {
+            btnText.style.display = 'none';
+            spinner.style.display = 'inline-block';
+            searchBtn.disabled = true;
+            showResult('<div class="loading-spinner"></div> Загрузка...', 'loading');
+        }
+
+        // Функция для скрытия загрузки
+        function hideLoading() {
+            btnText.style.display = 'inline';
+            spinner.style.display = 'none';
+            searchBtn.disabled = false;
+        }
+
+        // Обработчик отправки формы
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const orderId = orderIdInput.value.trim();
+            if (!orderId) {
+                showResult('Пожалуйста, введите ID заказа', 'error');
+                return;
+            }
+
+            showLoading();
+
+            try {
+                const response = await fetch('/order/' + encodeURIComponent(orderId));
+                
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        showResult('❌ Заказ не найден. Проверьте правильность ID.', 'error');
+                    } else {
+                        showResult(`❌ Ошибка сервера: ${response.status}`, 'error');
+                    }
+                    return;
+                }
+
+                const data = await response.json();
+                const formattedData = JSON.stringify(data, null, 2);
+                
+                showResult(`
+                    <strong>✅ Информация о заказе найдена:</strong>
+                    <div class="order-data">${formattedData}</div>
+                `, 'success');
+
+            } catch (error) {
+                console.error('Ошибка запроса:', error);
+                showResult('❌ Ошибка соединения с сервером', 'error');
+            } finally {
+                hideLoading();
+            }
+        });
+
+        // Автозаполнение тестовым ID при загрузке страницы
+        window.addEventListener('load', function() {
+            if (!orderIdInput.value) {
+                orderIdInput.value = 'b563feb7b2b84b6test';
+            }
+        });
+    </script>
+</body>
+</html>
