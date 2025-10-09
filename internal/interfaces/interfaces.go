@@ -45,3 +45,15 @@ type MessageConsumer interface {
 type OrderValidator interface {
 	Validate(order *model.Order) error
 }
+
+// RetryService интерфейс для retry логики
+type RetryService interface {
+	ExecuteWithRetry(operation func() error) error
+}
+
+// DLQService интерфейс для Dead Letter Queue
+type DLQService interface {
+	SendToDLQ(message []byte, reason string) error
+	ProcessDLQ() error
+	Close() error
+}

@@ -1,0 +1,49 @@
+{
+  "order_uid": "test-order-123",
+  "track_number": "TRACK123456",
+  "entry": "WBIL",
+  "delivery": {
+    "name": "Test User",
+    "phone": "+1234567890",
+    "zip": "12345",
+    "city": "Test City",
+    "address": "123 Test Street",
+    "region": "Test Region",
+    "email": "test@example.com"
+  },
+  "payment": {
+    "transaction": "test-order-123",
+    "request_id": "",
+    "currency": "USD",
+    "provider": "test-provider",
+    "amount": 1000,
+    "payment_dt": 1637907727,
+    "bank": "test-bank",
+    "delivery_cost": 100,
+    "goods_total": 900,
+    "custom_fee": 0
+  },
+  "items": [
+    {
+      "chrt_id": 123456,
+      "track_number": "ITEM123",
+      "price": 900,
+      "rid": "test-rid-123",
+      "name": "Test Item",
+      "sale": 0,
+      "size": "0",
+      "total_price": 900,
+      "nm_id": 123456,
+      "brand": "Test Brand",
+      "status": 202
+    }
+  ],
+  "locale": "en",
+  "internal_signature": "",
+  "customer_id": "test-customer",
+  "delivery_service": "test-service",
+  "shardkey": "0",
+  "sm_id": 1,
+  "date_created": "2025-08-25T21:23:00Z",
+  "oof_shard": "0"
+} 

@@ -1,10 +1,13 @@
 package config
 
 import (
+	"log"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -15,6 +18,8 @@ type Config struct {
 	App        AppConfig
 	Generator  GeneratorConfig
 	Validation ValidationConfig
+	Retry      RetryConfig
+	DLQ        DLQConfig
 }
 
 type DatabaseConfig struct {
@@ -77,7 +82,25 @@ type ValidationConfig struct {
 	MaxItemPrice         int
 }
 
+type RetryConfig struct {
+	MaxAttempts  int
+	InitialDelay time.Duration
+	MaxDelay     time.Duration
+	Multiplier   float64
+}
+
+type DLQConfig struct {
+	Enabled    bool
+	Topic      string
+	MaxRetries int
+}
+
 func Load() *Config {
+	// Загружаем .env файл если он существует
+	if err := godotenv.Load(); err != nil {
+		log.Printf("Warning: .env file not found: %v", err)
+	}
+
 	return &Config{
 		Database: DatabaseConfig{
 			Host:            getEnv("DB_HOST", "127.0.0.1"),
@@ -132,11 +155,22 @@ func Load() *Config {
 			MaxItemsPerOrder:     getEnvAsInt("VALIDATION_MAX_ITEMS_PER_ORDER", 100),
 			MaxItemPrice:         getEnvAsInt("VALIDATION_MAX_ITEM_PRICE", 100000),
 		},
+		Retry: RetryConfig{
+			MaxAttempts:  getEnvAsInt("RETRY_MAX_ATTEMPTS", 3),
+			InitialDelay: getEnvAsDuration("RETRY_INITIAL_DELAY", 1*time.Second),
+			MaxDelay:     getEnvAsDuration("RETRY_MAX_DELAY", 30*time.Second),
+			Multiplier:   getEnvAsFloat("RETRY_MULTIPLIER", 2.0),
+		},
+		DLQ: DLQConfig{
+			Enabled:    getEnvAsBool("DLQ_ENABLED", true),
+			Topic:      getEnv("DLQ_TOPIC", "orders-dlq"),
+			MaxRetries: getEnvAsInt("DLQ_MAX_RETRIES", 3),
+		},
 	}
 }
 
 func (c *Config) DatabaseURL() string {
-	return "postgres://" + c.Database.User + ":" + c.Database.Password + "@" +
+	return "postgresql://" + c.Database.User + ":" + c.Database.Password + "@" +
 		c.Database.Host + ":" + strconv.Itoa(c.Database.Port) + "/" +
 		c.Database.DBName + "?sslmode=" + c.Database.SSLMode
 }
@@ -170,6 +204,15 @@ func getEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
 	if value := os.Getenv(key); value != "" {
 		if duration, err := time.ParseDuration(value); err == nil {
 			return duration
+		}
+	}
+	return defaultValue
+}
+
+func getEnvAsFloat(key string, defaultValue float64) float64 {
+	if value := os.Getenv(key); value != "" {
+		if floatValue, err := strconv.ParseFloat(value, 64); err == nil {
+			return floatValue
 		}
 	}
 	return defaultValue

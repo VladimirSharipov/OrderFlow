@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -14,10 +15,12 @@ import (
 	"wbtest/internal/cache"
 	"wbtest/internal/config"
 	"wbtest/internal/db"
+	"wbtest/internal/dlq"
 	httpapi "wbtest/internal/http"
 	"wbtest/internal/interfaces"
 	"wbtest/internal/kafka"
 	"wbtest/internal/model"
+	"wbtest/internal/retry"
 	"wbtest/internal/validator"
 )
 
@@ -39,16 +42,6 @@ func main() {
 	}()
 	log.Println("Connected to DB")
 
-	// Загружаем заказы из БД в кеш
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.App.DatabaseLoadTimeout)
-	defer cancel()
-
-	log.Println("Loading orders from DB...")
-	orders, err := dbConn.LoadAllOrders(ctx)
-	if err != nil {
-		log.Fatalf("Failed to load orders from database: %v", err)
-	}
-
 	// Создаем кеш с настройками из конфигурации
 	orderCache := cache.NewOrderCache(cfg.Cache.MaxSize, cfg.Cache.TTL)
 	defer func() {
@@ -57,11 +50,34 @@ func main() {
 		}
 	}()
 
+	// Пытаемся загрузить заказы из БД в кеш (но не падаем при ошибке)
+	log.Println("Loading orders from DB...")
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.App.DatabaseLoadTimeout)
+	orders, err := dbConn.LoadAllOrders(ctx)
+	cancel()
+
+	if err != nil {
+		log.Printf("Warning: Failed to load orders from database: %v", err)
+		log.Println("Starting with empty cache...")
+		orders = []*model.Order{}
+	}
+
 	orderCache.LoadAll(orders)
 	log.Printf("Cache loaded: %d orders", len(orders))
 
 	// Инициализируем валидатор
 	orderValidator := validator.NewOrderValidator()
+
+	// Инициализируем retry сервис
+	retryService := retry.NewRetryService(&cfg.Retry)
+
+	// Инициализируем DLQ сервис
+	dlqService := dlq.NewDLQService(&cfg.DLQ, cfg.Kafka.Brokers)
+	defer func() {
+		if err := dlqService.Close(); err != nil {
+			log.Printf("Error closing DLQ service: %v", err)
+		}
+	}()
 
 	// Настройка Kafka
 	log.Printf("Connecting to Kafka: brokers=%v, topic=%s, groupID=%s",
@@ -89,33 +105,51 @@ func main() {
 		err := consumer.ReadMessages(ctx, func(msg []byte) {
 			log.Printf("[KAFKA] Received message: %s", string(msg))
 
-			var order model.Order
-			if err := json.Unmarshal(msg, &order); err != nil {
-				log.Printf("[KAFKA] Failed to parse JSON: %v", err)
-				return
+			// Обрабатываем сообщение с retry логикой
+			processMessage := func() error {
+				var order model.Order
+				if err := json.Unmarshal(msg, &order); err != nil {
+					return fmt.Errorf("failed to parse JSON: %w", err)
+				}
+
+				// Валидируем заказ
+				if err := orderValidator.Validate(&order); err != nil {
+					return fmt.Errorf("order validation failed: %w", err)
+				}
+
+				log.Printf("[KAFKA] Parsed and validated order: %s", order.OrderUID)
+
+				// Сохраняем в БД
+				if err := dbConn.SaveOrder(context.Background(), &order); err != nil {
+					return fmt.Errorf("failed to save order %s: %w", order.OrderUID, err)
+				}
+
+				// Обновляем кеш
+				orderCache.Set(&order)
+				log.Printf("[KAFKA] Order %s saved and cached", order.OrderUID)
+				return nil
 			}
 
-			// Валидируем заказ
-			if err := orderValidator.Validate(&order); err != nil {
-				log.Printf("[KAFKA] Order validation failed: %v", err)
-				return
+			// Выполняем обработку с retry
+			if err := retryService.ExecuteWithRetry(processMessage); err != nil {
+				log.Printf("[KAFKA] Failed to process message after retries: %v", err)
+
+				// Отправляем в DLQ
+				if dlqErr := dlqService.SendToDLQ(msg, err.Error()); dlqErr != nil {
+					log.Printf("[KAFKA] Failed to send message to DLQ: %v", dlqErr)
+				}
 			}
-
-			log.Printf("[KAFKA] Parsed and validated order: %s", order.OrderUID)
-
-			// Сохраняем в БД с обработкой ошибок
-			if err := dbConn.SaveOrder(context.Background(), &order); err != nil {
-				log.Printf("[KAFKA] Failed to save order %s: %v", order.OrderUID, err)
-				return
-			}
-
-			// Обновляем кеш
-			orderCache.Set(&order)
-			log.Printf("[KAFKA] Order %s saved and cached", order.OrderUID)
 		})
 
 		if err != nil && ctx.Err() == nil {
 			log.Printf("Kafka consumer stopped with error: %v", err)
+		}
+	}()
+
+	// Запускаем обработчик DLQ
+	go func() {
+		if err := dlqService.ProcessDLQ(); err != nil {
+			log.Printf("DLQ processor error: %v", err)
 		}
 	}()
 

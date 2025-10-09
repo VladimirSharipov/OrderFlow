@@ -158,7 +158,7 @@
                     type="text" 
                     id="orderId" 
                     class="search-input"
-                    placeholder="Введите order_uid (например: b563feb7b2b84b6test)" 
+                    placeholder="Введите order_uid (например: test-order-123)" 
                     required 
                     autocomplete="off"
                 />
@@ -245,7 +245,7 @@
         // Автозаполнение тестовым ID при загрузке страницы
         window.addEventListener('load', function() {
             if (!orderIdInput.value) {
-                orderIdInput.value = 'b563feb7b2b84b6test';
+                orderIdInput.value = 'test-order-123';
             }
         });
     </script>
