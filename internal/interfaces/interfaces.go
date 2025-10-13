@@ -15,7 +15,7 @@ type CacheStats struct {
 	Expirations int64
 }
 
-// OrderRepository интерфейс для работы с заказами в БД
+// OrderRepository интерфейс БД
 type OrderRepository interface {
 	LoadAllOrders(ctx context.Context) ([]*model.Order, error)
 	SaveOrder(ctx context.Context, order *model.Order) error
@@ -23,7 +23,7 @@ type OrderRepository interface {
 	Close()
 }
 
-// OrderCache интерфейс для кеша заказов
+// OrderCache интерфейс кеша
 type OrderCache interface {
 	Get(orderUID string) (*model.Order, bool)
 	Set(order *model.Order)
@@ -35,23 +35,23 @@ type OrderCache interface {
 	Stop()
 }
 
-// MessageConsumer интерфейс для Kafka consumer
+// MessageConsumer интерфейс Kafka consumer
 type MessageConsumer interface {
 	ReadMessages(ctx context.Context, handle func([]byte)) error
 	Close() error
 }
 
-// OrderValidator интерфейс для валидации заказов
+// OrderValidator интерфейс валидатора
 type OrderValidator interface {
 	Validate(order *model.Order) error
 }
 
-// RetryService интерфейс для retry логики
+// RetryService интерфейс retry
 type RetryService interface {
 	ExecuteWithRetry(operation func() error) error
 }
 
-// DLQService интерфейс для Dead Letter Queue
+// DLQService интерфейс DLQ
 type DLQService interface {
 	SendToDLQ(message []byte, reason string) error
 	ProcessDLQ() error

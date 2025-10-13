@@ -1,0 +1,49 @@
+{
+  "order_uid": "simple-test-order",
+  "track_number": "SIMPLE123",
+  "entry": "WBIL",
+  "delivery": {
+    "name": "Simple User",
+    "phone": "+1234567890",
+    "zip": "12345",
+    "city": "Simple City",
+    "address": "123 Simple Street",
+    "region": "Simple Region",
+    "email": "simple@example.com"
+  },
+  "payment": {
+    "transaction": "simple-test-order",
+    "request_id": "",
+    "currency": "USD",
+    "provider": "simple-provider",
+    "amount": 500,
+    "payment_dt": 1637907727,
+    "bank": "simple-bank",
+    "delivery_cost": 50,
+    "goods_total": 450,
+    "custom_fee": 0
+  },
+  "items": [
+    {
+      "chrt_id": 654321,
+      "track_number": "SIMPLEITEM",
+      "price": 450,
+      "rid": "simple-rid",
+      "name": "Simple Item",
+      "sale": 0,
+      "size": "0",
+      "total_price": 450,
+      "nm_id": 654321,
+      "brand": "Simple Brand",
+      "status": 202
+    }
+  ],
+  "locale": "en",
+  "internal_signature": "",
+  "customer_id": "simple-customer",
+  "delivery_service": "simple-service",
+  "shardkey": "0",
+  "sm_id": 1,
+  "date_created": "2025-10-13T19:58:00Z",
+  "oof_shard": "0"
+}

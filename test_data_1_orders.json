@@ -1,0 +1,75 @@
+{
+  "order_uid": "df117cdf-bb60-472a-b760-a096d68a7135",
+  "track_number": "TRACKGWSU00A2",
+  "entry": "WBILMT",
+  "delivery": {
+    "name": "Anika Steuber",
+    "phone": "9481694634",
+    "zip": "67814",
+    "city": "Charlotte",
+    "address": "345 Walkview, San Antonio, Oregon 93259",
+    "region": "Maine",
+    "email": "willakautzer@flatley.biz"
+  },
+  "payment": {
+    "transaction": "df117cdf-bb60-472a-b760-a096d68a7135",
+    "request_id": "",
+    "currency": "EUR",
+    "provider": "paypal",
+    "amount": 2174,
+    "payment_dt": 1759963459,
+    "bank": "alpha",
+    "delivery_cost": 590,
+    "goods_total": 1584,
+    "custom_fee": 0
+  },
+  "items": [
+    {
+      "chrt_id": 3936467,
+      "track_number": "ITEME08Z6A",
+      "price": 581,
+      "rid": "eaeeebd9-297f-4f85-acb2-0de86079d111",
+      "name": "Headphones",
+      "sale": 48,
+      "size": "5",
+      "total_price": 302,
+      "nm_id": 3057335,
+      "brand": "Bose",
+      "status": 242
+    },
+    {
+      "chrt_id": 7050291,
+      "track_number": "ITEMZSY12S",
+      "price": 1670,
+      "rid": "bb08dc11-36b1-49b1-9dc1-99245c5b7d92",
+      "name": "Speaker",
+      "sale": 47,
+      "size": "1",
+      "total_price": 885,
+      "nm_id": 9146271,
+      "brand": "Logitech",
+      "status": 228
+    },
+    {
+      "chrt_id": 3588620,
+      "track_number": "ITEME4HSWF",
+      "price": 709,
+      "rid": "9e679a46-2050-47d5-bb2c-18c3d82336dd",
+      "name": "Monitor",
+      "sale": 44,
+      "size": "2",
+      "total_price": 397,
+      "nm_id": 5755570,
+      "brand": "Bose",
+      "status": 202
+    }
+  ],
+  "locale": "de",
+  "internal_signature": "",
+  "customer_id": "Crooks7155",
+  "delivery_service": "cdek",
+  "shardkey": "7",
+  "sm_id": 67,
+  "date_created": "2025-09-21T17:01:15.035579333Z",
+  "oof_shard": "4"
+}

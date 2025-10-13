@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 type Migration struct {
@@ -32,8 +34,8 @@ func main() {
 	dbURL := os.Args[1]
 	command := os.Args[2]
 
-	// Используем стандартный драйвер postgres
-	db, err := sql.Open("postgres", dbURL)
+	// Используем драйвер pgx (stdlib)
+	db, err := sql.Open("pgx", dbURL)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
@@ -96,7 +98,7 @@ func runUpMigrations(db *sql.DB) error {
 	for _, migration := range migrations {
 		if !appliedMigrations[migration.Version] {
 			log.Printf("Applying migration %d: %s", migration.Version, migration.Name)
-			
+
 			tx, err := db.Begin()
 			if err != nil {
 				return fmt.Errorf("failed to begin transaction: %v", err)
@@ -109,7 +111,7 @@ func runUpMigrations(db *sql.DB) error {
 			}
 
 			// Записываем в таблицу миграций
-			if _, err := tx.Exec("INSERT INTO migrations (version, name) VALUES ($1, $2)", 
+			if _, err := tx.Exec("INSERT INTO migrations (version, name) VALUES ($1, $2)",
 				migration.Version, migration.Name); err != nil {
 				tx.Rollback()
 				return fmt.Errorf("failed to record migration %d: %v", migration.Version, err)
@@ -190,12 +192,12 @@ func showStatus(db *sql.DB) error {
 	for _, migration := range migrations {
 		status := "Pending"
 		appliedAt := "-"
-		
+
 		if appliedMigrations[migration.Version] {
 			status = "Applied"
 			// Получаем время применения
 			var appliedTime time.Time
-			err := db.QueryRow("SELECT applied_at FROM migrations WHERE version = $1", 
+			err := db.QueryRow("SELECT applied_at FROM migrations WHERE version = $1",
 				migration.Version).Scan(&appliedTime)
 			if err == nil {
 				appliedAt = appliedTime.Format("2006-01-02 15:04:05")
@@ -312,4 +314,4 @@ func getMigrations() []Migration {
 			`,
 		},
 	}
-} 
+}

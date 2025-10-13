@@ -236,9 +236,9 @@ func TestOrderCache_GetStats(t *testing.T) {
 	}
 
 	// Делаем несколько запросов для проверки hits/misses
-	cache.Get("test123") // hit
+	cache.Get("test123")     // hit
 	cache.Get("nonexistent") // miss
-	cache.Get("test123") // hit
+	cache.Get("test123")     // hit
 
 	stats = cache.GetStats()
 	if stats.Hits != 2 {
@@ -250,4 +250,4 @@ func TestOrderCache_GetStats(t *testing.T) {
 	if stats.HitRate < 66.0 || stats.HitRate > 67.0 {
 		t.Errorf("Expected hit rate ~66.67%%, got %.2f%%", stats.HitRate)
 	}
-} 
+}

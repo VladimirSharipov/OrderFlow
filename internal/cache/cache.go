@@ -21,14 +21,14 @@ type OrderCache struct {
 	ttl             time.Duration
 	cleanupInterval time.Duration
 	stopCleanup     chan struct{}
-	
+
 	// Метрики
 	stats struct {
-		mu           sync.RWMutex
-		hits         int64
-		misses       int64
-		evictions    int64
-		expirations  int64
+		mu          sync.RWMutex
+		hits        int64
+		misses      int64
+		evictions   int64
+		expirations int64
 	}
 }
 
@@ -40,7 +40,7 @@ func NewOrderCache(maxSize int, ttl time.Duration) interfaces.OrderCache {
 		cleanupInterval: time.Minute * 5,
 		stopCleanup:     make(chan struct{}),
 	}
-	
+
 	go cache.startCleanup()
 	return cache
 }
@@ -50,12 +50,12 @@ func (c *OrderCache) Get(orderUID string) (*model.Order, bool) {
 	c.mu.RLock()
 	entry, exists := c.orders[orderUID]
 	c.mu.RUnlock()
-	
+
 	if !exists {
 		c.incMisses()
 		return nil, false
 	}
-	
+
 	// Проверяем TTL с мелкогранулярной блокировкой
 	entry.mu.RLock()
 	if time.Since(entry.createdAt) > c.ttl {
@@ -65,12 +65,12 @@ func (c *OrderCache) Get(orderUID string) (*model.Order, bool) {
 		c.incMisses()
 		return nil, false
 	}
-	
+
 	// Обновляем время последнего доступа
 	entry.lastAccess = time.Now()
 	order := entry.order
 	entry.mu.RUnlock()
-	
+
 	c.incHits()
 	return order, true
 }
@@ -79,32 +79,32 @@ func (c *OrderCache) Set(order *model.Order) {
 	if order == nil || order.OrderUID == "" {
 		return
 	}
-	
+
 	now := time.Now()
 	newEntry := &cacheEntry{
 		order:      order,
 		createdAt:  now,
 		lastAccess: now,
 	}
-	
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	// Если кеш полный, удаляем самый старый элемент
 	if len(c.orders) >= c.maxSize {
 		c.evictOldest()
 	}
-	
+
 	c.orders[order.OrderUID] = newEntry
 }
 
 func (c *OrderCache) LoadAll(orders []*model.Order) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	// Очищаем кеш перед загрузкой
 	c.orders = make(map[string]*cacheEntry)
-	
+
 	now := time.Now()
 	for _, order := range orders {
 		if order != nil && order.OrderUID != "" {
@@ -138,13 +138,13 @@ func (c *OrderCache) Clear() {
 func (c *OrderCache) GetStats() interfaces.CacheStats {
 	c.stats.mu.RLock()
 	defer c.stats.mu.RUnlock()
-	
+
 	total := c.stats.hits + c.stats.misses
 	hitRate := 0.0
 	if total > 0 {
 		hitRate = float64(c.stats.hits) / float64(total) * 100
 	}
-	
+
 	return interfaces.CacheStats{
 		Size:        c.Size(),
 		Hits:        c.stats.hits,
@@ -158,18 +158,18 @@ func (c *OrderCache) GetStats() interfaces.CacheStats {
 func (c *OrderCache) evictOldest() {
 	var oldestKey string
 	var oldestTime time.Time
-	
+
 	for key, entry := range c.orders {
 		entry.mu.RLock()
 		lastAccess := entry.lastAccess
 		entry.mu.RUnlock()
-		
+
 		if oldestKey == "" || lastAccess.Before(oldestTime) {
 			oldestKey = key
 			oldestTime = lastAccess
 		}
 	}
-	
+
 	if oldestKey != "" {
 		delete(c.orders, oldestKey)
 		c.incEvictions()
@@ -179,7 +179,7 @@ func (c *OrderCache) evictOldest() {
 func (c *OrderCache) startCleanup() {
 	ticker := time.NewTicker(c.cleanupInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -193,21 +193,21 @@ func (c *OrderCache) startCleanup() {
 func (c *OrderCache) cleanup() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	now := time.Now()
 	expiredKeys := make([]string, 0)
-	
+
 	// Собираем ключи устаревших записей
 	for key, entry := range c.orders {
 		entry.mu.RLock()
 		createdAt := entry.createdAt
 		entry.mu.RUnlock()
-		
+
 		if now.Sub(createdAt) > c.ttl {
 			expiredKeys = append(expiredKeys, key)
 		}
 	}
-	
+
 	// Удаляем устаревшие записи
 	for _, key := range expiredKeys {
 		delete(c.orders, key)

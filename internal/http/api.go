@@ -10,28 +10,29 @@ import (
 	"wbtest/internal/model"
 )
 
-// Server простой HTTPсервер для работы с заказами
+// Server HTTP сервер для заказов
 type Server struct {
 	Cache interfaces.OrderCache
+	DB    interfaces.OrderRepository
 }
 
-// NewServer создаёт новый сервер с переданным кешом
-func NewServer(c interfaces.OrderCache) *Server {
-	return &Server{Cache: c}
+// NewServer создает сервер
+func NewServer(c interfaces.OrderCache, db interfaces.OrderRepository) *Server {
+	return &Server{Cache: c, DB: db}
 }
 
-// ServeHTTP маршрутизирует запросы /order/{id} API остальное статика
+// ServeHTTP маршрутизирует запросы
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/health" {
 		s.handleHealth(w, r)
 		return
 	}
-	
+
 	if r.URL.Path == "/order" && r.Method == "POST" {
 		s.handleCreateOrder(w, r)
 		return
 	}
-	
+
 	if strings.HasPrefix(r.URL.Path, "/order/") {
 		s.handleGetOrder(w, r)
 		return
@@ -40,7 +41,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	serveStatic(w, r)
 }
 
-// handleHealth отдаёт статус сервиса
+// handleHealth возвращает статус
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	response := map[string]interface{}{
@@ -54,7 +55,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleCreateOrder создаёт новый заказ
+// handleCreateOrder создает заказ
 func (s *Server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 	var order model.Order
 	if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
@@ -68,7 +69,7 @@ func (s *Server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	response := map[string]interface{}{
-		"message": "Order created successfully",
+		"message":   "Order created successfully",
 		"order_uid": order.OrderUID,
 	}
 	if err := json.NewEncoder(w).Encode(response); err != nil {
@@ -77,7 +78,7 @@ func (s *Server) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleGetOrder отдаёт один заказ по его UID
+// handleGetOrder возвращает заказ по UID
 func (s *Server) handleGetOrder(w http.ResponseWriter, r *http.Request) {
 	orderUID := strings.TrimPrefix(r.URL.Path, "/order/")
 	if orderUID == "" {
@@ -85,20 +86,39 @@ func (s *Server) handleGetOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Сначала пытаемся найти в кеше
 	order, ok := s.Cache.Get(orderUID)
-	if !ok {
-		http.Error(w, "Order not found", http.StatusNotFound)
+	if ok {
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(order); err != nil {
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+			return
+		}
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(order); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-		return
+	// Если не найдено в кеше, пытаемся загрузить из БД
+	if s.DB != nil {
+		ctx := r.Context()
+		dbOrder, err := s.DB.GetOrderByUID(ctx, orderUID)
+		if err == nil && dbOrder != nil {
+			// Загружаем в кеш для следующих запросов
+			s.Cache.Set(dbOrder)
+
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(dbOrder); err != nil {
+				http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+				return
+			}
+			return
+		}
 	}
+
+	// Если не найдено ни в кеше, ни в БД
+	http.Error(w, "Order not found", http.StatusNotFound)
 }
 
-// serveStatic отдаёт статические файлы из папки web
+// serveStatic отдает статику
 func serveStatic(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	if path == "/" {

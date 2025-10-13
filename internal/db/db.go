@@ -10,12 +10,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// DB представляет подключение к базе данных
+// DB подключение к БД
 type DB struct {
 	pool *pgxpool.Pool
 }
 
-// New создает новое подключение к базе данных
+// New создает подключение к БД
 func New(connStr string) (*DB, error) {
 	pool, err := pgxpool.New(context.Background(), connStr)
 	if err != nil {
@@ -24,13 +24,12 @@ func New(connStr string) (*DB, error) {
 	return &DB{pool: pool}, nil
 }
 
-// Close закрывает подключение к базе данных
+// Close закрывает подключение
 func (db *DB) Close() {
 	db.pool.Close()
 }
 
-// LoadAllOrders загружает все заказы из БД с их связанными данными
-// Использует один SQL запрос для оптимизации производительности
+// LoadAllOrders загружает все заказы
 func (db *DB) LoadAllOrders(ctx context.Context) ([]*model.Order, error) {
 	query := `
 	SELECT 
@@ -92,8 +91,57 @@ func (db *DB) LoadAllOrders(ctx context.Context) ([]*model.Order, error) {
 	return orders, nil
 }
 
-// SaveOrder сохраняет заказ в БД используя транзакцию
-// Обеспечивает атомарность операции сохранения всех связанных данных
+// GetOrderByUID загружает заказ по UID
+func (db *DB) GetOrderByUID(ctx context.Context, orderUID string) (*model.Order, error) {
+	query := `
+	SELECT 
+	  o.order_uid, o.track_number, o.entry, o.locale, o.internal_signature, 
+	  o.customer_id, o.delivery_service, o.shardkey, o.sm_id, o.date_created::text, o.oof_shard,
+	  row_to_json(d.*),
+	  row_to_json(p.*),
+	  COALESCE(json_agg(i.*) FILTER (WHERE i.id IS NOT NULL), '[]')
+	FROM orders o
+	JOIN delivery d ON d.order_uid = o.order_uid
+	JOIN payment p ON p.order_uid = o.order_uid
+	LEFT JOIN items i ON i.order_uid = o.order_uid
+	WHERE o.order_uid = $1
+	GROUP BY o.order_uid, d.*, p.*
+	`
+
+	var order model.Order
+	var deliveryJSON, paymentJSON []byte
+	var itemsJSON []byte
+	var dateCreatedStr string
+
+	err := db.pool.QueryRow(ctx, query, orderUID).Scan(
+		&order.OrderUID, &order.TrackNumber, &order.Entry, &order.Locale, &order.InternalSignature,
+		&order.CustomerID, &order.DeliveryService, &order.ShardKey, &order.SmID, &dateCreatedStr, &order.OofShard,
+		&deliveryJSON, &paymentJSON, &itemsJSON,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Парсим дату создания
+	if dateCreated, err := time.Parse(time.RFC3339, dateCreatedStr); err == nil {
+		order.DateCreated = dateCreated
+	}
+
+	// Парсим JSON поля
+	if err := json.Unmarshal(deliveryJSON, &order.Delivery); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(paymentJSON, &order.Payment); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(itemsJSON, &order.Items); err != nil {
+		return nil, err
+	}
+
+	return &order, nil
+}
+
+// SaveOrder сохраняет заказ в БД
 func (db *DB) SaveOrder(ctx context.Context, order *model.Order) error {
 	// Небольшие проверки входных данных чтобы не писать мусор
 	if order == nil {
