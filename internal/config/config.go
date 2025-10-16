@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"wbtest/internal/logger"
+
 	"github.com/joho/godotenv"
 )
 
@@ -20,6 +22,8 @@ type Config struct {
 	Validation ValidationConfig
 	Retry      RetryConfig
 	DLQ        DLQConfig
+	Logger     logger.Config
+	Metrics    MetricsConfig
 }
 
 type DatabaseConfig struct {
@@ -166,6 +170,15 @@ func Load() *Config {
 			Topic:      getEnv("DLQ_TOPIC", "orders-dlq"),
 			MaxRetries: getEnvAsInt("DLQ_MAX_RETRIES", 3),
 		},
+		Logger: logger.Config{
+			Level:  getEnv("LOG_LEVEL", "info"),
+			Format: getEnv("LOG_FORMAT", "json"),
+		},
+		Metrics: MetricsConfig{
+			Enabled: getEnvAsBool("METRICS_ENABLED", true),
+			Port:    getEnvAsInt("METRICS_PORT", 9090),
+			Path:    getEnv("METRICS_PATH", "/metrics"),
+		},
 	}
 }
 
@@ -216,4 +229,11 @@ func getEnvAsFloat(key string, defaultValue float64) float64 {
 		}
 	}
 	return defaultValue
+}
+
+// MetricsConfig конфигурация метрик
+type MetricsConfig struct {
+	Enabled bool
+	Port    int
+	Path    string
 }

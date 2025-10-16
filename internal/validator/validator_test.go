@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	apperrors "wbtest/internal/errors"
 	"wbtest/internal/model"
 )
 
@@ -208,6 +209,16 @@ func TestOrderValidator_Validate(t *testing.T) {
 			err := validator.Validate(tt.order)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("OrderValidator.Validate() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			// Проверяем тип ошибки для nil order
+			if tt.name == "nil order" && err != nil {
+				if appErr, ok := err.(*apperrors.AppError); !ok {
+					t.Errorf("Expected AppError for nil order, got %T", err)
+				} else if appErr.Type != apperrors.ErrorTypeValidation {
+					t.Errorf("Expected ErrorTypeValidation, got %s", appErr.Type)
+				}
 			}
 		})
 	}

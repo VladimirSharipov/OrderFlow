@@ -161,12 +161,12 @@ func (c *OrderCache) evictOldest() {
 
 	for key, entry := range c.orders {
 		entry.mu.RLock()
-		lastAccess := entry.lastAccess
+		createdAt := entry.createdAt
 		entry.mu.RUnlock()
 
-		if oldestKey == "" || lastAccess.Before(oldestTime) {
+		if oldestKey == "" || createdAt.Before(oldestTime) {
 			oldestKey = key
-			oldestTime = lastAccess
+			oldestTime = createdAt
 		}
 	}
 

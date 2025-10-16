@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,24 +9,32 @@ import (
 	"time"
 
 	"wbtest/internal/config"
+	"wbtest/internal/logger"
 )
 
 func main() {
-	log.Println("Starting order service...")
-
 	// Загружаем конфигурацию
 	cfg := config.Load()
-	log.Printf("Configuration loaded: DB=%s:%d, Kafka=%v, HTTP=%d",
-		cfg.Database.Host, cfg.Database.Port, cfg.Kafka.Brokers, cfg.HTTP.Port)
+
+	// Инициализируем логгер
+	log := logger.New(cfg.Logger)
+	log.Info("Starting order service...")
+
+	log.WithFields(map[string]interface{}{
+		"db_host":   cfg.Database.Host,
+		"db_port":   cfg.Database.Port,
+		"kafka":     cfg.Kafka.Brokers,
+		"http_port": cfg.HTTP.Port,
+	}).Info("Configuration loaded")
 
 	// Создаем приложение
 	app, err := NewApp(cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize application: %v", err)
+		log.WithError(err).Fatal("Failed to initialize application")
 	}
 	defer func() {
 		if err := app.Close(); err != nil {
-			log.Printf("Error closing application: %v", err)
+			log.WithError(err).Error("Error closing application")
 		}
 	}()
 
@@ -45,31 +52,31 @@ func main() {
 	// Запускаем обработчик сообщений Kafka
 	go func() {
 		if err := messageHandler.StartKafkaConsumer(ctx); err != nil && ctx.Err() == nil {
-			log.Printf("Kafka consumer stopped with error: %v", err)
+			log.WithError(err).Error("Kafka consumer stopped with error")
 		}
 	}()
 
 	// Запускаем обработчик DLQ
 	go func() {
 		if err := app.DLQService.ProcessDLQ(); err != nil {
-			log.Printf("DLQ processor error: %v", err)
+			log.WithError(err).Error("DLQ processor error")
 		}
 	}()
 
 	// Запускаем HTTP сервер
 	go func() {
-		log.Printf("Starting HTTP server on :%d", cfg.HTTP.Port)
+		log.WithField("port", cfg.HTTP.Port).Info("Starting HTTP server")
 		if err := app.HTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("HTTP server error: %v", err)
+			log.WithError(err).Fatal("HTTP server error")
 		}
 	}()
 
-	log.Println("Order service started successfully")
-	log.Println("Waiting for shutdown signal...")
+	log.Info("Order service started successfully")
+	log.Info("Waiting for shutdown signal...")
 
 	// Ждем сигнала завершения
 	<-sigChan
-	log.Println("Received shutdown signal, starting graceful shutdown...")
+	log.Info("Received shutdown signal, starting graceful shutdown...")
 
 	// Graceful shutdown с таймаутом из конфигурации
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.App.GracefulShutdownTimeout)
@@ -77,9 +84,9 @@ func main() {
 
 	// Останавливаем HTTP сервер
 	if err := app.HTTPServer.Shutdown(shutdownCtx); err != nil {
-		log.Printf("HTTP server shutdown error: %v", err)
+		log.WithError(err).Error("HTTP server shutdown error")
 	} else {
-		log.Println("HTTP server stopped gracefully")
+		log.Info("HTTP server stopped gracefully")
 	}
 
 	// Отменяем контекст для остановки Kafka consumer
@@ -88,10 +95,10 @@ func main() {
 	// Ждем завершения всех горутин
 	select {
 	case <-shutdownCtx.Done():
-		log.Println("Graceful shutdown timeout exceeded")
+		log.Warn("Graceful shutdown timeout exceeded")
 	case <-time.After(cfg.App.ShutdownWaitTimeout):
-		log.Println("Graceful shutdown completed")
+		log.Info("Graceful shutdown completed")
 	}
 
-	log.Println("Order service stopped")
+	log.Info("Order service stopped")
 }
