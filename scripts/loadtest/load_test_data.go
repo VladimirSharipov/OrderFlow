@@ -23,7 +23,10 @@ func main() {
 	filename := os.Args[1]
 
 	// Загружаем конфигурацию
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
 
 	// Подключаемся к БД
 	dbConn, err := db.New(cfg.DatabaseURL())

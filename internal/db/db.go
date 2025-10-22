@@ -13,6 +13,8 @@ import (
 // DB подключение к БД
 type DB struct {
 	pool *pgxpool.Pool
+	// DB экспортированное поле для доступа к подключению (для миграций)
+	DB *pgxpool.Pool
 }
 
 // New создает подключение к БД
@@ -21,7 +23,7 @@ func New(connStr string) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &DB{pool: pool}, nil
+	return &DB{pool: pool, DB: pool}, nil
 }
 
 // Close закрывает подключение

@@ -14,7 +14,7 @@ func TestLoad(t *testing.T) {
 	envVars := []string{
 		"DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME",
 		"KAFKA_BROKERS", "KAFKA_TOPIC", "KAFKA_GROUP_ID",
-		"HTTP_PORT", "CACHE_MAX_SIZE", "CACHE_TTL",
+		"HTTP_PORT", "CACHE_MAX_SIZE", "CACHE_TTL_MINUTES",
 		"RETRY_MAX_ATTEMPTS", "RETRY_INITIAL_DELAY", "RETRY_MAX_DELAY", "RETRY_MULTIPLIER",
 		"DLQ_ENABLED", "DLQ_TOPIC", "DLQ_MAX_RETRIES",
 	}
@@ -53,7 +53,7 @@ func TestLoad(t *testing.T) {
 					Port:     5432,
 					User:     "orders_user",
 					Password: "orders_pass",
-					DBName:   "orders_db",
+					Database: "orders_db",
 				},
 				Kafka: KafkaConfig{
 					Brokers: []string{"localhost:9092"},
@@ -64,8 +64,8 @@ func TestLoad(t *testing.T) {
 					Port: 8082,
 				},
 				Cache: CacheConfig{
-					MaxSize: 1000,
-					TTL:     24 * time.Hour,
+					MaxSize:    1000,
+					TTLMinutes: 60, // default value
 				},
 				Retry: RetryConfig{
 					MaxAttempts:  3,
@@ -97,7 +97,7 @@ func TestLoad(t *testing.T) {
 				"KAFKA_GROUP_ID":      "custom-group",
 				"HTTP_PORT":           "9090",
 				"CACHE_MAX_SIZE":      "2000",
-				"CACHE_TTL":           "2h",
+				"CACHE_TTL_MINUTES":   "120",
 				"RETRY_MAX_ATTEMPTS":  "5",
 				"RETRY_INITIAL_DELAY": "2s",
 				"RETRY_MAX_DELAY":     "60s",
@@ -112,7 +112,7 @@ func TestLoad(t *testing.T) {
 					Port:     5433,
 					User:     "custom-user",
 					Password: "custom-password",
-					DBName:   "custom-db",
+					Database: "custom-db",
 				},
 				Kafka: KafkaConfig{
 					Brokers: []string{"kafka1:9092", "kafka2:9092"},
@@ -123,8 +123,8 @@ func TestLoad(t *testing.T) {
 					Port: 9090,
 				},
 				Cache: CacheConfig{
-					MaxSize: 2000,
-					TTL:     120 * time.Minute,
+					MaxSize:    2000,
+					TTLMinutes: 120, // 2 hours in minutes
 				},
 				Retry: RetryConfig{
 					MaxAttempts:  5,
@@ -149,7 +149,10 @@ func TestLoad(t *testing.T) {
 			}
 
 			// Загружаем конфигурацию
-			config := Load()
+			config, err := Load()
+			if err != nil {
+				t.Fatalf("Failed to load config: %v", err)
+			}
 
 			// Проверяем значения
 			if config.Database.Host != tt.expected.Database.Host {
@@ -164,8 +167,8 @@ func TestLoad(t *testing.T) {
 			if config.Database.Password != tt.expected.Database.Password {
 				t.Errorf("Database.Password = %v, want %v", config.Database.Password, tt.expected.Database.Password)
 			}
-			if config.Database.DBName != tt.expected.Database.DBName {
-				t.Errorf("Database.DBName = %v, want %v", config.Database.DBName, tt.expected.Database.DBName)
+			if config.Database.Database != tt.expected.Database.Database {
+				t.Errorf("Database.Database = %v, want %v", config.Database.Database, tt.expected.Database.Database)
 			}
 
 			// Проверяем Kafka конфигурацию
@@ -193,8 +196,8 @@ func TestLoad(t *testing.T) {
 			if config.Cache.MaxSize != tt.expected.Cache.MaxSize {
 				t.Errorf("Cache.MaxSize = %v, want %v", config.Cache.MaxSize, tt.expected.Cache.MaxSize)
 			}
-			if config.Cache.TTL != tt.expected.Cache.TTL {
-				t.Errorf("Cache.TTL = %v, want %v", config.Cache.TTL, tt.expected.Cache.TTL)
+			if config.Cache.TTLMinutes != tt.expected.Cache.TTLMinutes {
+				t.Errorf("Cache.TTLMinutes = %v, want %v", config.Cache.TTLMinutes, tt.expected.Cache.TTLMinutes)
 			}
 
 			// Проверяем Retry конфигурацию

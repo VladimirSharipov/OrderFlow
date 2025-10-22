@@ -15,12 +15,12 @@ func TestNewApp(t *testing.T) {
 			Port:     5432,
 			User:     "test_user",
 			Password: "test_pass",
-			DBName:   "test_db",
+			Database: "test_db",
 			SSLMode:  "disable",
 		},
 		Cache: config.CacheConfig{
 			MaxSize:         100,
-			TTL:             time.Hour,
+			TTLMinutes:      60,
 			CleanupInterval: 5 * time.Minute,
 		},
 		HTTP: config.HTTPConfig{

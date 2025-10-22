@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"wbtest/internal/cache"
 	"wbtest/internal/config"
@@ -13,6 +15,7 @@ import (
 	httpapi "wbtest/internal/http"
 	"wbtest/internal/interfaces"
 	"wbtest/internal/kafka"
+	"wbtest/internal/migrations"
 	"wbtest/internal/model"
 	"wbtest/internal/retry"
 	"wbtest/internal/validator"
@@ -85,7 +88,7 @@ func (a *App) initCache() error {
 	log.Println("Initializing cache...")
 
 	// Создаем кеш с настройками из конфигурации
-	orderCache := cache.NewOrderCache(a.Config.Cache.MaxSize, a.Config.Cache.TTL)
+	orderCache := cache.NewOrderCache(a.Config.Cache.MaxSize, time.Duration(a.Config.Cache.TTLMinutes)*time.Minute)
 	a.Cache = orderCache
 
 	// Пытаемся загрузить заказы из БД в кеш
@@ -190,5 +193,27 @@ func (a *App) Close() error {
 	}
 
 	log.Println("Application resources closed")
+	return nil
+}
+
+// runMigrations запускает миграции базы данных
+func (a *App) runMigrations() error {
+	log.Println("Running database migrations...")
+
+	// Создаем мигратор
+	migrator := migrations.NewMigrator(a.DB.(*db.DB).DB, "schema_migrations")
+
+	// Загружаем миграции
+	if err := migrations.LoadMigrationsFromFiles(migrator, "migrations"); err != nil {
+		return fmt.Errorf("failed to load migrations: %v", err)
+	}
+
+	// Запускаем миграции
+	ctx := context.Background()
+	if err := migrator.Migrate(ctx); err != nil {
+		return fmt.Errorf("failed to run migrations: %v", err)
+	}
+
+	log.Println("Database migrations completed successfully")
 	return nil
 }

@@ -31,7 +31,7 @@ type DatabaseConfig struct {
 	Port            int
 	User            string
 	Password        string
-	DBName          string
+	Database        string
 	SSLMode         string
 	MaxOpenConns    int
 	MaxIdleConns    int
@@ -45,6 +45,8 @@ type KafkaConfig struct {
 	AutoOffsetReset  string
 	EnableAutoCommit bool
 	SessionTimeoutMs int
+	BatchSize        int
+	BatchTimeout     time.Duration
 }
 
 type HTTPConfig struct {
@@ -56,7 +58,7 @@ type HTTPConfig struct {
 
 type CacheConfig struct {
 	MaxSize         int
-	TTL             time.Duration
+	TTLMinutes      int
 	CleanupInterval time.Duration
 }
 
@@ -99,19 +101,19 @@ type DLQConfig struct {
 	MaxRetries int
 }
 
-func Load() *Config {
+func Load() (*Config, error) {
 	// Загружаем .env файл если он существует
 	if err := godotenv.Load(); err != nil {
 		log.Printf("Warning: .env file not found: %v", err)
 	}
 
-	return &Config{
+	cfg := &Config{
 		Database: DatabaseConfig{
 			Host:            getEnv("DB_HOST", "127.0.0.1"),
 			Port:            getEnvAsInt("DB_PORT", 5432),
 			User:            getEnv("DB_USER", "orders_user"),
 			Password:        getEnv("DB_PASSWORD", "orders_pass"),
-			DBName:          getEnv("DB_NAME", "orders_db"),
+			Database:        getEnv("DB_NAME", "orders_db"),
 			SSLMode:         getEnv("DB_SSLMODE", "disable"),
 			MaxOpenConns:    getEnvAsInt("DB_MAX_OPEN_CONNS", 25),
 			MaxIdleConns:    getEnvAsInt("DB_MAX_IDLE_CONNS", 5),
@@ -124,6 +126,8 @@ func Load() *Config {
 			AutoOffsetReset:  getEnv("KAFKA_AUTO_OFFSET_RESET", "earliest"),
 			EnableAutoCommit: getEnvAsBool("KAFKA_ENABLE_AUTO_COMMIT", true),
 			SessionTimeoutMs: getEnvAsInt("KAFKA_SESSION_TIMEOUT_MS", 30000),
+			BatchSize:        getEnvAsInt("KAFKA_BATCH_SIZE", 100),
+			BatchTimeout:     getEnvAsDuration("KAFKA_BATCH_TIMEOUT", 100*time.Millisecond),
 		},
 		HTTP: HTTPConfig{
 			Port:         getEnvAsInt("HTTP_PORT", 8082),
@@ -133,7 +137,7 @@ func Load() *Config {
 		},
 		Cache: CacheConfig{
 			MaxSize:         getEnvAsInt("CACHE_MAX_SIZE", 1000),
-			TTL:             getEnvAsDuration("CACHE_TTL", 24*time.Hour),
+			TTLMinutes:      getEnvAsInt("CACHE_TTL_MINUTES", 60),
 			CleanupInterval: getEnvAsDuration("CACHE_CLEANUP_INTERVAL", 5*time.Minute),
 		},
 		App: AppConfig{
@@ -180,12 +184,20 @@ func Load() *Config {
 			Path:    getEnv("METRICS_PATH", "/metrics"),
 		},
 	}
+
+	// Валидируем конфигурацию
+	validator := NewValidator()
+	if err := validator.Validate(cfg); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
 }
 
 func (c *Config) DatabaseURL() string {
 	return "postgresql://" + c.Database.User + ":" + c.Database.Password + "@" +
 		c.Database.Host + ":" + strconv.Itoa(c.Database.Port) + "/" +
-		c.Database.DBName + "?sslmode=" + c.Database.SSLMode
+		c.Database.Database + "?sslmode=" + c.Database.SSLMode
 }
 
 func getEnv(key, defaultValue string) string {

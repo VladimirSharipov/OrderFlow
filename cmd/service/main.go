@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,7 +15,12 @@ import (
 
 func main() {
 	// Загружаем конфигурацию
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		// Используем стандартный логгер для ошибки конфигурации
+		log.Printf("Failed to load configuration: %v", err)
+		os.Exit(1)
+	}
 
 	// Инициализируем логгер
 	log := logger.New(cfg.Logger)
